@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: armoric-api
+    runtime: python
+    buildCommand: pip install -r requirements-render.txt && python -m textblob.download_corpora && python pipelines/etl_sales.py && python pipelines/etl_feedback.py
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
