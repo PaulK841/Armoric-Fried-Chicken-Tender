@@ -74,29 +74,45 @@ with tab1:
     st.header("Sales Overview")
 
     if not sales_df.empty:
-        # Filters
+        # 1. Sidebar/Filter configuration
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             selected_countries = st.multiselect(
-                "Filter by Country", options=sorted(sales_df["country"].unique()), default=[]
+                "Filter by Country", 
+                options=sorted(sales_df["country"].unique()), 
+                default=[]
             )
         with col_f2:
             selected_products = st.multiselect(
-                "Filter by Product", options=sorted(sales_df["product"].unique()), default=[]
+                "Filter by Product", 
+                options=sorted(sales_df["product"].unique()), 
+                default=[]
             )
 
+        # 2. Apply filtering logic to the dataframe
         filtered_sales = sales_df.copy()
         if selected_countries:
             filtered_sales = filtered_sales[filtered_sales["country"].isin(selected_countries)]
         if selected_products:
             filtered_sales = filtered_sales[filtered_sales["product"].isin(selected_products)]
 
-        # Monthly trend
-        if not trend_df.empty:
+        # Ensure sale_date is in datetime format for proper sorting and grouping
+        filtered_sales['sale_date'] = pd.to_datetime(filtered_sales['sale_date'])
+
+        # --- A. Dynamic Calculation: Monthly Trend ---
+        # Recalculate totals based on the filtered results to ensure chart interactivity
+        dynamic_trend = filtered_sales.groupby(
+            filtered_sales['sale_date'].dt.strftime('%Y-%m')
+        )['total_amount'].sum().reset_index()
+        
+        dynamic_trend.columns = ['month', 'total_revenue']
+        dynamic_trend = dynamic_trend.sort_values('month')
+
+        if not dynamic_trend.empty:
             st.subheader("Monthly Revenue Trend")
             fig_trend = px.bar(
-                trend_df, x="month", y="total_revenue",
-                title="Monthly Revenue",
+                dynamic_trend, x="month", y="total_revenue",
+                title="Monthly Revenue (Filtered)",
                 labels={"month": "Month", "total_revenue": "Revenue ($)"},
                 color_discrete_sequence=["#2E86AB"],
             )
@@ -104,35 +120,43 @@ with tab1:
 
         col_a, col_b = st.columns(2)
 
-        # Sales by product
+        # --- B. Dynamic Calculation: Revenue by Product (Pie Chart) ---
         with col_a:
-            if not product_df.empty:
+            dynamic_product = filtered_sales.groupby('product')['total_amount'].sum().reset_index()
+            dynamic_product.columns = ['product', 'total_revenue']
+            
+            if not dynamic_product.empty:
                 st.subheader("Revenue by Product")
                 fig_prod = px.pie(
-                    product_df, values="total_revenue", names="product",
+                    dynamic_product, values="total_revenue", names="product",
                     title="Revenue Distribution by Product",
                     color_discrete_sequence=px.colors.qualitative.Set2,
                 )
                 st.plotly_chart(fig_prod, use_container_width=True)
 
-        # Sales by country
+        # --- C. Dynamic Calculation: Revenue by Country (Bar Chart) ---
         with col_b:
-            if not country_df.empty:
+            dynamic_country = filtered_sales.groupby('country')['total_amount'].sum().reset_index()
+            dynamic_country.columns = ['country', 'total_revenue']
+            
+            if not dynamic_country.empty:
                 st.subheader("Revenue by Country")
                 fig_country = px.bar(
-                    country_df, x="country", y="total_revenue",
+                    dynamic_country, x="country", y="total_revenue",
                     title="Revenue by Country",
                     labels={"country": "Country", "total_revenue": "Revenue ($)"},
                     color="country",
                     color_discrete_sequence=px.colors.qualitative.Pastel,
                 )
+                # Sort bars by descending value for better readability
+                fig_country.update_layout(xaxis={'categoryorder':'total descending'})
                 st.plotly_chart(fig_country, use_container_width=True)
 
-        # Data table
-        st.subheader("Sales Data")
+        # 3. Data Table (displays the raw filtered records)
+        st.subheader("Sales Data Details")
         st.dataframe(filtered_sales, use_container_width=True, height=300)
     else:
-        st.warning("No sales data available.")
+        st.warning("No sales data available. Please run the ETL pipeline first.")
 
 # ============ TAB 2: Campaign Feedback ============
 API_URL = "http://api:8000"
