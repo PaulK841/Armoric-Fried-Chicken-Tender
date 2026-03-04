@@ -20,6 +20,7 @@ services:
     ports:
       - "8501:8501"
     volumes:
+      - .:/app
       - ./data:/app/data
     working_dir: /app
 
